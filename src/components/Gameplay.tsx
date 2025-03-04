@@ -7,6 +7,11 @@ import {
   useKeyboardControls,
 } from "../hooks/gameHooks";
 
+// Define interface for DeviceOrientationEvent with iOS permission API
+interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
+  requestPermission?: () => Promise<string>;
+}
+
 interface GameplayProps {
   gameItems: string[];
   timeLimit: number;
@@ -20,8 +25,7 @@ export default function Gameplay({
   onFinish,
   onCancel,
 }: GameplayProps) {
-  const [isDeviceOrientationGranted, setIsDeviceOrientationGranted] =
-    useState(false);
+  const [, setIsDeviceOrientationGranted] = useState(false);
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
   const [countdown, setCountdown] = useState(3);
 
@@ -32,7 +36,6 @@ export default function Gameplay({
     currentItem,
     score,
     actionInProgress,
-    resetGame,
     startGame,
     beginPlay,
     markCorrect,
@@ -47,12 +50,13 @@ export default function Gameplay({
 
   const keyDirection = useKeyboardControls();
 
-  // Check if we need to ask for permissions
+  // Check for device orientation permission requirements
   useEffect(() => {
     if (
       isGyroSupported &&
       typeof DeviceOrientationEvent !== "undefined" &&
-      typeof (DeviceOrientationEvent as any).requestPermission === "function"
+      typeof (DeviceOrientationEvent as unknown as DeviceOrientationEventiOS)
+        .requestPermission === "function"
     ) {
       setShowPermissionPrompt(true);
     } else {

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { getPackNames, getPackItems } from "../utils/game";
+// import { getPackNames, getPackItems } from "../utils/game";
 
 interface PackSelectionProps {
   onStartGame: (selectedItems: string[]) => void;

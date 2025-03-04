@@ -160,11 +160,16 @@ export function useDeviceOrientation() {
     };
   }, [lastBeta]);
 
+  // Define interface for DeviceOrientationEvent with iOS-specific requestPermission
+  interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
+    requestPermission?: () => Promise<'granted' | 'denied' | 'default'>;
+  }
+
   const requestPermission = async () => {
     if (typeof DeviceOrientationEvent !== 'undefined' && 
-        typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+        typeof ((DeviceOrientationEvent as unknown) as DeviceOrientationEventiOS).requestPermission === 'function') {
       try {
-        const permissionState = await (DeviceOrientationEvent as any).requestPermission();
+        const permissionState = await ((DeviceOrientationEvent as unknown) as DeviceOrientationEventiOS).requestPermission?.();
         return permissionState === 'granted';
       } catch (e) {
         console.error('Error requesting device orientation permission:', e);

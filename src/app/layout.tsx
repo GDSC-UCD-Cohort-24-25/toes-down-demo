@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Heads Up Clone",
+  title: "Toes Down",
   description:
-    "A clone of the Heads Up game with VSCode-like UI and Monokai theme",
+    "A web clone of Heads-Up",
 };
 
 export default function RootLayout({

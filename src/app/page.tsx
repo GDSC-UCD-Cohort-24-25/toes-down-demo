@@ -29,7 +29,7 @@ export default function Home() {
   return (
     <main className="min-h-screen flex flex-col">
       <div className="vscode-header">
-        <span>Heads Up Clone</span>
+        <span>Toes Down</span>
       </div>
 
       <div className="flex-grow py-6">

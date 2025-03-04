@@ -70,7 +70,7 @@ export default function PackSelection({ onStartGame }: PackSelectionProps) {
   return (
     <div className="container">
       <div className="title-bar">
-        <h1 className="text-xl font-bold">Heads Up Clone</h1>
+        <h1 className="text-xl font-bold">Toes Down</h1>
       </div>
 
       <div className="card my-4">

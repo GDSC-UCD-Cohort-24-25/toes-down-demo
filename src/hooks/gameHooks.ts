@@ -61,7 +61,7 @@ export function useGameState(settings: GameSettings) {
         setGameState('finished');
       }
       setActionInProgress(false);
-    }, 500); // 500ms delay
+    }, 3000); // 500ms delay
   }, [gameState, currentItems, currentItemIndex, actionInProgress]);
 
   // Mark current item as skipped
@@ -138,7 +138,7 @@ export function useDeviceOrientation() {
         setOrientation({ beta: e.beta });
         
         if (lastBeta !== null) {
-          const threshold = 20; // degrees of tilt to trigger
+          const threshold = 35; // degrees of tilt to trigger
           
           if (e.beta < -threshold && (lastBeta >= -threshold || lastBeta === null)) {
             setDirection('up');

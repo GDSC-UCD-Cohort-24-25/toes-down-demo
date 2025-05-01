@@ -12,6 +12,7 @@ export function useGameState(settings: GameSettings) {
     items: [],
   });
   const [actionInProgress, setActionInProgress] = useState(false);
+  const [lastActionTimestamp, setLastActionTimestamp] = useState(0);
   
   // Reset the game state
   const resetGame = useCallback(() => {
@@ -19,6 +20,7 @@ export function useGameState(settings: GameSettings) {
     setTimeLeft(settings.timeLimit);
     setCurrentItemIndex(0);
     setActionInProgress(false);
+    setLastActionTimestamp(0);
     setScore({
       correct: 0,
       skipped: 0,
@@ -41,51 +43,76 @@ export function useGameState(settings: GameSettings) {
     setGameState('playing');
   }, []);
 
-  // Mark current item as correct
+  // End the game manually
+  const endGame = useCallback(() => {
+    setGameState('finished');
+  }, []);
+
+  // Mark current item as correct with improved responsiveness
   const markCorrect = useCallback(() => {
     if (gameState !== 'playing' || actionInProgress) return;
     
-    setActionInProgress(true);
+    // Prevent rapid sequential actions with longer debounce
+    const now = Date.now();
+    if (now - lastActionTimestamp < 800) return;
+    setLastActionTimestamp(now);
+
+    // Immediately update score and set action in progress
     setScore(prev => ({
       ...prev,
       correct: prev.correct + 1,
       items: [...prev.items, { text: currentItems[currentItemIndex], status: 'correct' }],
     }));
+    
+    setActionInProgress(true);
 
-    // Add a delay before showing the next card
-    setTimeout(() => {
-      if (currentItemIndex < currentItems.length - 1) {
-        setCurrentItemIndex(prev => prev + 1);
-      } else {
-        // End the game when we run out of words
-        setGameState('finished');
-      }
-      setActionInProgress(false);
-    }, 3000); // 500ms delay
-  }, [gameState, currentItems, currentItemIndex, actionInProgress]);
+    // Use requestAnimationFrame for smoother transitions
+    requestAnimationFrame(() => {
+      // Slightly longer delay for better visual feedback
+      setTimeout(() => {
+        if (currentItemIndex < currentItems.length - 1) {
+          setCurrentItemIndex(prev => prev + 1);
+        } else {
+          // End the game when we run out of words
+          setGameState('finished');
+        }
+        setActionInProgress(false);
+      }, 800); // Adjusted delay for better user feedback
+    });
+  }, [gameState, currentItems, currentItemIndex, lastActionTimestamp, actionInProgress]);
 
-  // Mark current item as skipped
+  // Mark current item as skipped with improved responsiveness
   const markSkipped = useCallback(() => {
     if (gameState !== 'playing' || actionInProgress) return;
     
-    setActionInProgress(true);
+    // Prevent rapid sequential actions with longer debounce
+    const now = Date.now();
+    if (now - lastActionTimestamp < 800) return;
+    setLastActionTimestamp(now);
+
+    // Immediately update score and set action in progress
     setScore(prev => ({
       ...prev,
       skipped: prev.skipped + 1,
       items: [...prev.items, { text: currentItems[currentItemIndex], status: 'skipped' }],
     }));
+    
+    setActionInProgress(true);
 
-    // Add a delay before showing the next card
-    setTimeout(() => {
-      if (currentItemIndex < currentItems.length - 1) {
-        setCurrentItemIndex(prev => prev + 1);
-      } else {
-        // End the game when we run out of words
-        setGameState('finished');
-      }
-      setActionInProgress(false);
-    }, 500); // 500ms delay
-  }, [gameState, currentItems, currentItemIndex, actionInProgress]);
+    // Use requestAnimationFrame for smoother transitions
+    requestAnimationFrame(() => {
+      // Slightly longer delay for better visual feedback
+      setTimeout(() => {
+        if (currentItemIndex < currentItems.length - 1) {
+          setCurrentItemIndex(prev => prev + 1);
+        } else {
+          // End the game when we run out of words
+          setGameState('finished');
+        }
+        setActionInProgress(false);
+      }, 800); // Adjusted delay for better user feedback
+    });
+  }, [gameState, currentItems, currentItemIndex, lastActionTimestamp]);
 
   // Timer effect
   useEffect(() => {
@@ -114,6 +141,7 @@ export function useGameState(settings: GameSettings) {
     resetGame,
     startGame,
     beginPlay,
+    endGame,
     markCorrect,
     markSkipped,
   };
@@ -124,6 +152,8 @@ export function useDeviceOrientation() {
   const [lastBeta, setLastBeta] = useState<number | null>(null);
   const [direction, setDirection] = useState<'up' | 'down' | 'neutral'>('neutral');
   const [isSupported, setIsSupported] = useState(false);
+  const [lastDirectionChange, setLastDirectionChange] = useState(0);
+  const [stableReadings, setStableReadings] = useState<number[]>([]);
 
   useEffect(() => {
     // Check if DeviceOrientationEvent is available
@@ -137,19 +167,48 @@ export function useDeviceOrientation() {
       if (e.beta !== null) {
         setOrientation({ beta: e.beta });
         
-        if (lastBeta !== null) {
-          const threshold = 35; // degrees of tilt to trigger
-          
-          if (e.beta < -threshold && (lastBeta >= -threshold || lastBeta === null)) {
-            setDirection('up');
-          } else if (e.beta > threshold && (lastBeta <= threshold || lastBeta === null)) {
-            setDirection('down');
-          } else if (Math.abs(e.beta) < threshold/2) {
-            setDirection('neutral');
-          }
-        }
+        // Keep a small buffer of recent readings for stability
+        const newReadings = [...stableReadings, e.beta].slice(-3);
+        setStableReadings(newReadings);
         
-        setLastBeta(e.beta);
+        // Only trigger a direction change if we have enough readings
+        if (newReadings.length >= 3) {
+          // Use average of recent readings to reduce jitter
+          const avgBeta = newReadings.reduce((sum, val) => sum + val, 0) / newReadings.length;
+          
+          // More conservative threshold to prevent misreadings
+          const threshold = 29; 
+          // Higher hysteresis value (difference between triggering and resetting)
+          const neutralThreshold = threshold / 3;
+          const now = Date.now();
+          
+          // Longer debounce to prevent accidental triggers
+          if (now - lastDirectionChange > 400) {
+            // Check if movement is consistent in one direction
+            const isConsistent = newReadings.every(beta => 
+              (avgBeta < -threshold && beta < -neutralThreshold) || 
+              (avgBeta > threshold && beta > neutralThreshold)
+            );
+            
+            if (isConsistent) {
+              if (avgBeta < -threshold && (lastBeta === null || lastBeta >= -neutralThreshold)) {
+                setDirection('up');
+                setLastDirectionChange(now);
+              } else if (avgBeta > threshold && (lastBeta === null || lastBeta <= neutralThreshold)) {
+                setDirection('down');
+                setLastDirectionChange(now);
+              }
+            }
+            
+            // Only go to neutral state when firmly in neutral zone
+            if (Math.abs(avgBeta) < neutralThreshold && direction !== 'neutral') {
+              setDirection('neutral');
+              setLastDirectionChange(now);
+            }
+          }
+          
+          setLastBeta(avgBeta);
+        }
       }
     };
 
@@ -158,7 +217,7 @@ export function useDeviceOrientation() {
     return () => {
       window.removeEventListener('deviceorientation', handleOrientation);
     };
-  }, [lastBeta]);
+  }, [lastBeta, direction, lastDirectionChange]);
 
   // Define interface for DeviceOrientationEvent with iOS-specific requestPermission
   interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
@@ -189,14 +248,23 @@ export function useDeviceOrientation() {
 
 export function useKeyboardControls() {
   const [keyDirection, setKeyDirection] = useState<'up' | 'down' | 'neutral'>('neutral');
+  const [lastKeyChange, setLastKeyChange] = useState(0);
+  const [keyPressActive, setKeyPressActive] = useState(false);
   
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const now = Date.now();
+      if (now - lastKeyChange < 300 || keyPressActive) return; // Longer debounce on key presses
+      
       if (e.key === 'ArrowDown') {
         setKeyDirection('down');
+        setKeyPressActive(true);
+        setLastKeyChange(now);
         e.preventDefault();
       } else if (e.key === 'ArrowUp') {
         setKeyDirection('up');
+        setKeyPressActive(true);
+        setLastKeyChange(now);
         e.preventDefault();
       }
     };
@@ -204,6 +272,11 @@ export function useKeyboardControls() {
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         setKeyDirection('neutral');
+        setKeyPressActive(false);
+        // Add a small delay before allowing new keypresses
+        setTimeout(() => {
+          setLastKeyChange(Date.now());
+        }, 200);
         e.preventDefault();
       }
     };
@@ -215,7 +288,7 @@ export function useKeyboardControls() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [lastKeyChange, keyPressActive]);
 
   return keyDirection;
 }

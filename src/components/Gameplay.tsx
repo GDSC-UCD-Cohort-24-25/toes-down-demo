@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   useGameState,
   useDeviceOrientation,
@@ -29,7 +29,7 @@ export default function Gameplay({
   const [, setIsDeviceOrientationGranted] = useState(false);
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
   const [countdown, setCountdown] = useState(3);
-  const [showResults, setShowResults] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
 
   const gameSettings = { selectedPacks: [], timeLimit };
   const {
@@ -42,7 +42,7 @@ export default function Gameplay({
     beginPlay,
     markCorrect,
     markSkipped,
-    endGame,
+    resetGame,
   } = useGameState(gameSettings);
 
   const {
@@ -91,6 +91,18 @@ export default function Gameplay({
     return () => clearInterval(timer);
   }, [gameState, beginPlay]);
 
+  // Define handleMarkCorrect with useCallback to prevent recreation on each render
+  const handleMarkCorrect = useCallback(() => {
+    if (gameState !== "playing" || actionInProgress) return;
+    
+    setIsCorrect(true);
+    // This will show the animation, then after a delay, mark it correct
+    setTimeout(() => {
+      markCorrect();
+      setIsCorrect(false);
+    }, 500); // Adjust timing based on your animation duration
+  }, [gameState, actionInProgress, markCorrect]);
+
   // Handle direction changes from gyro or keyboard
   useEffect(() => {
     if (gameState !== "playing" || actionInProgress) return;
@@ -98,8 +110,8 @@ export default function Gameplay({
     const direction =
       gyroDirection !== "neutral" ? gyroDirection : keyDirection;
 
-    if (direction === "up") {
-      markCorrect();
+    if (direction === "up" && !isCorrect) {
+      handleMarkCorrect();
     } else if (direction === "down") {
       markSkipped();
     }
@@ -108,11 +120,12 @@ export default function Gameplay({
     actionInProgress,
     gyroDirection,
     keyDirection,
-    markCorrect,
     markSkipped,
+    isCorrect,
+    handleMarkCorrect,
   ]);
 
-  // Finish game when time is up
+  // Finish game when time is up or game state is finished
   useEffect(() => {
     if (gameState === "finished") {
       onFinish({
@@ -133,22 +146,35 @@ export default function Gameplay({
   };
 
   const handleEndGame = () => {
-    // Show the results screen instead of immediately calling onCancel
-    setShowResults(true);
-    
-    // If endGame is available in your hook, use it to properly end the game state
-    if (gameState === "playing" && typeof endGame === "function") {
-      endGame();
+    // Properly end the game by setting the game state to finished
+    if (gameState === "playing") {
+      // This will trigger the useEffect above to call onFinish
+      // and the timer will stop
+      resetGame();
+      onFinish({
+        correct: score.correct,
+        skipped: score.skipped,
+      });
     }
   };
 
-  // Results screen
-  if (showResults) {
+  // Results screen - no longer using a separate state for this
+  if (gameState === "finished") {
     return (
-      <GameResults 
-        score={score}
-        onPlayAgain={() => onFinish(score)}
-      />
+      <div>
+        <GameResults 
+          score={score}
+          onPlayAgain={() => {
+            resetGame();
+            startGame(gameItems);
+          }}
+        />
+        <div className="container mt-4">
+          <button onClick={onCancel} className="button w-full">
+            Back to Menu
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -220,7 +246,7 @@ export default function Gameplay({
 
         {/* Game card */}
         <div
-          className={`game-card ${gyroDirection === "up" ? "flipped" : ""} ${
+          className={`game-card ${isCorrect ? "flipped" : ""} ${
             actionInProgress ? "opacity-70 pointer-events-none" : ""
           }`}
         >
@@ -252,7 +278,7 @@ export default function Gameplay({
           </div>
         </div>
 
-        {/* Cancel button */}
+        {/* End Game button */}
         <button onClick={handleEndGame} className="button mt-8 w-full">
           End Game
         </button>
